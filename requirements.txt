@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+openai
+python-dotenv
+duckdb
+sqlglot
+openpyxl
+pandas
+pyarrow
+# only needed for the optional default Postgres database:
+sqlalchemy
+psycopg2-binary
