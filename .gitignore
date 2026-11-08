@@ -12,3 +12,5 @@ data/
 *.duckdb.wal
 *.db
 .DS_Store
+
+test_data/ 
