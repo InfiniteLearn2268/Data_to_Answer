@@ -42,6 +42,10 @@ MAX_COMPLETION_TOKENS = _int("MAX_COMPLETION_TOKENS", 2048)
 CLARIFY_TIMEOUT_S = _int("CLARIFY_TIMEOUT_S", 600)      # a waiting thread gives up after 10 min
 MAX_CONCURRENT_QUESTIONS = _int("MAX_CONCURRENT_QUESTIONS", 8)
 
+# --- conversation memory -----------------------------------------------------
+MEMORY_TURNS = _int("MEMORY_TURNS", 5)                  # last N question+answer pairs remembered per session (0 = off)
+MEMORY_ANSWER_CHARS = _int("MEMORY_ANSWER_CHARS", 1500) # long answers are cut to this size before being remembered
+
 # --- sessions ----------------------------------------------------------------
 SESSION_TTL_S = _int("SESSION_TTL_S", 6 * 3600)         # idle sessions (and their files) are deleted
 

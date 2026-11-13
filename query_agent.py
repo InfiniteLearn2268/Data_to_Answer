@@ -200,8 +200,14 @@ def ask(
     connector: BaseConnector,
     client: OpenAI,
     clarify_fn=_default_clarify,
+    history: list = None,
 ) -> str:
-    """Runs the full agent loop for one question and returns the final answer."""
+    """Runs the full agent loop for one question and returns the final answer.
+
+    `history` is the earlier part of THIS conversation as plain chat messages
+    ([{"role": "user", ...}, {"role": "assistant", ...}, ...]). It lets the
+    model resolve follow-ups such as "and for the West?". Only final questions
+    and answers are remembered -- never raw rows or tool output."""
 
     schema_text = connector.get_schema()
     tools = _build_tool_schema(connector.query_language)
@@ -233,6 +239,10 @@ Rules:
   answer questions about this connected dataset, and briefly mention (in one
   sentence) what the dataset actually contains, based on the schema above, so
   the user knows what they can ask instead.
+- CONVERSATION: messages before the latest user message are the earlier questions in this chat and
+  your answers to them. Use them to resolve references such as "that", "the same", "and for the West",
+  "now by category". Still run a fresh query for every new data question -- never reuse a number from an
+  earlier answer unless the user is asking about that earlier answer itself.
 - Write a single SELECT statement per call (a WITH ... SELECT is fine).
 - If a query fails, read the error message and try a corrected query.
 - If a result says it was truncated, refine the query (aggregate or filter) instead of guessing.
@@ -241,10 +251,9 @@ Rules:
 - NEVER retry a successful query merely because its result is 0 or empty.
 - If the query executed successfully and the returned result is 0/empty, accept that result and answer the user directly."""
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": question},
-    ]
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(history or [])                      # earlier questions + answers (memory)
+    messages.append({"role": "user", "content": question})
 
     for turn in range(MAX_TURNS):
         response = client.chat.completions.create(

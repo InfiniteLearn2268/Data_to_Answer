@@ -6,6 +6,7 @@ python-dotenv
 duckdb
 sqlglot
 openpyxl
+xlrd
 pandas
 pyarrow
 # only needed for the optional default Postgres database:

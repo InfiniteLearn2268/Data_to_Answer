@@ -119,6 +119,7 @@ def _new_session(sid: str, **extra) -> dict:
         "error": None,
         "clarify_event": None,
         "clarify_answer": None,
+        "history": [],                  # [(question, answer), ...] -- conversation memory, last MEMORY_TURNS
     }
     s.update(extra)
     return s
@@ -362,6 +363,24 @@ def delete_session(sid: str):
 # ---------------------------------------------------------------------------
 # Questions
 # ---------------------------------------------------------------------------
+def _history_messages(s: dict) -> list:
+    """The remembered question/answer pairs as chat messages for the model."""
+    msgs = []
+    for q, a in s["history"]:
+        msgs.append({"role": "user", "content": q})
+        msgs.append({"role": "assistant", "content": a})
+    return msgs
+
+
+def _remember(s: dict, question: str, answer: str) -> None:
+    """Keeps only the last MEMORY_TURNS pairs, and cuts long answers, so the
+    prompt (and your Groq token usage) can't grow without limit."""
+    if config.MEMORY_TURNS <= 0 or not answer:
+        return
+    s["history"].append((question, answer[: config.MEMORY_ANSWER_CHARS]))
+    del s["history"][: -config.MEMORY_TURNS]
+
+
 def _run_ask(sid: str, question: str) -> None:
     s = sessions.get(sid)
     if s is None:
@@ -382,7 +401,9 @@ def _run_ask(sid: str, question: str) -> None:
         return answer
 
     try:
-        result = ask(question=question, connector=s["connector"], client=get_client(), clarify_fn=clarify_fn)
+        result = ask(question=question, connector=s["connector"], client=get_client(), clarify_fn=clarify_fn,
+                     history=_history_messages(s))
+        _remember(s, question, result)
         s["answer"] = result
         s["status"] = "done"
     except Exception as exc:
