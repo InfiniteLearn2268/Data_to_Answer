@@ -101,10 +101,45 @@ def _load_parquet(con, path: str, table: str, progress: Progress) -> None:
     con.execute(f"CREATE OR REPLACE TABLE {_q(table)} AS SELECT * FROM read_parquet({_lit(path)})")
 
 
+def _is_json_list(path: str) -> bool:
+    with open(path, "rb") as f:
+        head = f.read(4096).lstrip(b"\xef\xbb\xbf \t\r\n")
+    return head[:1] == b"["
+
+
+def _json_list_to_jsonl(path: str, out_path: str, progress: Progress) -> int:
+    """Stream a huge '[ {...}, {...} ]' file into one-object-per-line form with
+    constant memory (DuckDB would otherwise buffer the whole array)."""
+    import ijson
+
+    n = 0
+    with open(path, "rb") as src, open(out_path, "w", encoding="utf-8") as dst:
+        for obj in ijson.items(src, "item", use_float=True):
+            dst.write(json.dumps(obj, ensure_ascii=False, default=str))
+            dst.write("\n")
+            n += 1
+            if progress and n % 200_000 == 0:
+                progress(f"Converting JSON list ({n:,} rows)")
+    return n
+
+
 def _load_json(con, path: str, table: str, progress: Progress) -> None:
     if progress:
         progress("Reading JSON")
-    con.execute(f"CREATE OR REPLACE TABLE {_q(table)} AS SELECT * FROM read_json_auto({_lit(path)}, maximum_object_size=104857600)")
+    src, tmp = path, None
+    if _is_json_list(path):
+        try:
+            tmp = path + ".converted.jsonl"
+            _json_list_to_jsonl(path, tmp, progress)
+            src = tmp
+        except ImportError:
+            src = path          # ijson missing: fall back to DuckDB's own reader
+    try:
+        # default object size: a huge maximum_object_size makes DuckDB allocate huge buffers
+        con.execute(f"CREATE OR REPLACE TABLE {_q(table)} AS SELECT * FROM read_json_auto({_lit(src)})")
+    finally:
+        if tmp and os.path.exists(tmp):
+            os.remove(tmp)
 
 
 def _load_excel(con, path: str, table: str, progress: Progress) -> None:

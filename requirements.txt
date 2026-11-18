@@ -12,3 +12,4 @@ pyarrow
 # only needed for the optional default Postgres database:
 sqlalchemy
 psycopg2-binary
+ijson
